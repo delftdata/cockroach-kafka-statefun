@@ -1,0 +1,65 @@
+version: '3.5'
+
+services:
+
+ cockroach:
+   image: cockroachdb/cockroach:v21.1.9
+   ports:
+     - "26257:26257"
+     - "8080:8080"
+   command: start-single-node --insecure
+   volumes:
+     - "${PWD}/cockroach-data/cockroach:/cockroach/cockroach-data"
+
+### The kafka clients
+ account-service:
+   build: ./account
+   image: cpckroachdb-account:latest
+   environment:
+     - KAFKA_URL=kafka-broker:9092
+     - DB_NAME=accounts
+     - DB_HOST=cockroach
+     - DB_PORT=26257
+     - DB_USER=root
+     - DB_SSL=disable
+     - PYTHONUNBUFFERED=1
+   command: "python consumer.py"
+   depends_on:
+     - kafka-broker
+     - cockroach
+   restart: always
+
+  ### Zookeeper and Kafka to serve as ingress and egress for the application
+ zookeeper:
+   image: wurstmeister/zookeeper
+   ports:
+     - "2181:2181"
+ kafka-broker:
+   image: wurstmeister/kafka:2.12-2.0.1
+   ports:
+     - "9092:9092"
+   environment:
+     - HOSTNAME_COMMAND=route -n | awk '/UG[ \t]/{print $$2}'
+     - KAFKA_CREATE_TOPICS=insert:8:1,read:8:1,update:8:1,transfer:8:1,responses:8:1
+     - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
+     - KAFKA_AUTO_CREATE_TOPICS_ENABLE=false
+   depends_on:
+     - zookeeper
+
+ ### use this to easily query the DB
+ db-client:
+   build: ./account
+   image: cpckroachdb-account:latest
+   environment:
+     - DB_NAME=accounts
+     - DB_HOST=cockroach
+     - DB_PORT=26257
+     - DB_USER=root
+     - DB_SSL=disable
+   ports:
+     - "5000:5000"
+   command: "gunicorn -b 0.0.0.0:5000 app:app -w 1 --threads 1"
+   depends_on:
+     - kafka-broker
+     - cockroach
+   restart: always
