@@ -14,7 +14,7 @@ services:
 ### The kafka clients
  account-service:
    build: ./account
-   image: cpckroachdb-account:latest
+   image: kpsarakis/cockroachdb-ycsb-client:latest
    environment:
      - KAFKA_URL=kafka-broker:9092
      - DB_NAME=accounts
@@ -22,8 +22,6 @@ services:
      - DB_PORT=26257
      - DB_USER=root
      - DB_SSL=disable
-     - PYTHONUNBUFFERED=1
-   command: "python consumer.py"
    depends_on:
      - kafka-broker
      - cockroach
@@ -48,8 +46,8 @@ services:
 
  ### use this to easily query the DB
  db-client:
-   build: ./account
-   image: cpckroachdb-account:latest
+   build: ./db-client
+   image: cockroachdb-client:latest
    environment:
      - DB_NAME=accounts
      - DB_HOST=cockroach

@@ -1,6 +1,6 @@
 FROM python:3-slim
 
-WORKDIR /home/kafka-cockroach-client
+WORKDIR /home/db-client
 
 COPY ./requirements.txt .
 
@@ -8,4 +8,4 @@ RUN pip install -r requirements.txt
 
 COPY . .
 
-CMD ["python", "consumer.py"]
+EXPOSE 5000

@@ -1,14 +1,23 @@
 import os
 import psycopg2
 from aiopg.sa import create_engine
-from psycopg2.errors import SerializationFailure, UniqueViolation
+from psycopg2.errors import SerializationFailure, UniqueViolation, CheckViolation
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 import asyncio
 import uvloop
 from google.protobuf.any_pb2 import Any
 from google.protobuf.message import DecodeError
+import datetime
+import logging
 
 from protobuf.messages_pb2 import Wrapper, Insert, Read, Update, Transfer, Response
+
+
+logging.Formatter.formatTime = (lambda self, record, datefmt: datetime.datetime.
+                                fromtimestamp(record.created, datetime.timezone.utc).astimezone().isoformat())
+
+logging.basicConfig(format='%(asctime)s.%(msecs)03d %(levelname)s:\t%(message)s',
+                    level=logging.INFO)
 
 
 async def send_response(request_id: str, status_code: int, message=None):
@@ -50,7 +59,6 @@ async def handle_transfer(out_key: str, in_key: str, amount: int, engine):
     async with engine.acquire() as con:
         trans = await con.begin()
         try:
-            # TODO check here
             await con.execute(
                 "UPDATE accounts SET balance = balance - %s WHERE id = %s", (amount, out_key)
             )
@@ -58,14 +66,17 @@ async def handle_transfer(out_key: str, in_key: str, amount: int, engine):
                 "UPDATE accounts SET balance = balance + %s WHERE id = %s", (amount, in_key)
             )
         except SerializationFailure:
+            # Error in the transaction
             await trans.rollback()
             return 422
-        # except Exception:
-        #     pass
-        #     # TODO or here
+        except CheckViolation:
+            # Not enough credit
+            await trans.rollback()
+            return 401
         else:
+            # Successful transaction
             await trans.commit()
-    return 200
+            return 200
 
 
 async def handle_update(key: str, balance: int, engine):
@@ -74,6 +85,7 @@ async def handle_update(key: str, balance: int, engine):
 
 
 async def consume(engine):
+    logging.info("Ready to consume messages")
     consumer = AIOKafkaConsumer(
         'insert', 'update', 'read', 'transfer',
         bootstrap_servers=[os.environ.get("KAFKA_URL")],
@@ -83,8 +95,7 @@ async def consume(engine):
     try:
         # Consume messages
         async for msg in consumer:
-            # print("consumed: ", msg.topic, msg.partition, msg.offset,
-            #       msg.key, msg.value, msg.timestamp)
+            logging.debug(f"Consumed: {msg.topic} {msg.partition} {msg.offset} {msg.key} {msg.value} {msg.timestamp}")
             try:
                 wrapped = Wrapper().FromString(msg.value)
                 request_id = wrapped.request_id
@@ -99,8 +110,6 @@ async def consume(engine):
                     message.Unpack(read)
                     await handle_read(read.id, engine)
                     await send_response(request_id, 200)
-                    # account = await handle_read(read.id, engine)
-                    # await send_response(request_id, 200, account)
                 elif message.Is(Update.DESCRIPTOR):
                     update = Update()
                     message.Unpack(update)
@@ -137,7 +146,6 @@ def create_table():
               "CREATE TABLE IF NOT EXISTS accounts (id STRING PRIMARY KEY, balance INT NOT NULL DEFAULT 0 CHECK (balance >= 0));"
         )
     conn.commit()
-    print('Database initialized')
     conn.close()
 
 

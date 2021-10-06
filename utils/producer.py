@@ -62,7 +62,7 @@ n_records = 100
 for i in range(n_records):
     send_insert_message(str(i))
 
-send_transfer_message("1", "2")
+send_transfer_message("1", "2", 10000000)
 send_transfer_message("3", "4")
 send_update_message("5", 99999)
 send_read_message("5")

@@ -1,0 +1,38 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cockroach-ycsb-kafka-client
+spec:
+  selector:
+    matchLabels:
+      service: cockroach-ycsb-kafka-client
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        service: cockroach-ycsb-kafka-client
+    spec:
+      containers:
+        - name: cockroach-ycsb-kafka-client
+          image: kpsarakis/cockroachdb-ycsb-client:latest
+          resources:
+            requests:
+              memory: "1Gi"
+              cpu: "1"
+            limits:
+              memory: "1Gi"
+              cpu: "1"
+          env:
+            - name: DB_NAME
+              value: 'accounts'
+            - name: DB_HOST
+              value: 'cockroachdb-public'
+            - name: DB_PORT
+              value: '26257'
+            - name: DB_USER
+              value: 'root'
+            - name: DB_SSL
+              value: 'disable'
+            - name: KAFKA_URL
+              value: 'kafka-cluster-kafka-bootstrap:9092'
