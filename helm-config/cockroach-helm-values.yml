@@ -7,4 +7,5 @@ statefulset:
       memory: "2Gi"
 storage:
   persistentVolume:
+    enabled: no
     size: 4Gi
