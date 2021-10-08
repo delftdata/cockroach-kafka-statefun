@@ -3,14 +3,13 @@ import psycopg2
 from aiopg.sa import create_engine
 from psycopg2.errors import SerializationFailure, UniqueViolation, CheckViolation
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
-from kafka.errors import UnknownTopicOrPartitionError
+from kafka.errors import UnknownTopicOrPartitionError, KafkaConnectionError
 import asyncio
 import uvloop
 from google.protobuf.any_pb2 import Any
 from google.protobuf.message import DecodeError
 import datetime
 import logging
-import time
 
 from protobuf.messages_pb2 import Wrapper, Insert, Read, Update, Transfer, Response
 
@@ -96,8 +95,8 @@ async def consume(engine):
     while True:
         try:
             await consumer.start()
-        except UnknownTopicOrPartitionError: 
-            time.sleep(1)
+        except (UnknownTopicOrPartitionError, KafkaConnectionError):
+            await asyncio.sleep(1)
             print("Waiting for topics to be created")
             continue
         break
