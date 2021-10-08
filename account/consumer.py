@@ -97,7 +97,7 @@ async def consume(engine):
             await consumer.start()
         except (UnknownTopicOrPartitionError, KafkaConnectionError):
             await asyncio.sleep(1)
-            print("Waiting for topics to be created")
+            logging.info("Waiting for topics to be created")
             continue
         break
     try:
