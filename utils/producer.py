@@ -18,7 +18,11 @@ def wrap(request_id, outgoing):
 def send_insert_message(identifier: str, balance: int = 10000):
     insert = Insert()
     insert.id = identifier
-    insert.state.CopyFrom(State(balance=balance, fields={}))
+    fields = {'field0': str(uuid.uuid4()), 'field1': str(uuid.uuid4()), 'field2': str(uuid.uuid4()),
+              'field3': str(uuid.uuid4()), 'field4': str(uuid.uuid4()), 'field5': str(uuid.uuid4()),
+              'field6': str(uuid.uuid4()), 'field7': str(uuid.uuid4()), 'field8': str(uuid.uuid4()),
+              'field9': str(uuid.uuid4())}
+    insert.state.CopyFrom(State(balance=balance, fields=fields))
     request_id = str(uuid.uuid4()).replace('-', '')
     serialized_wrapped = wrap(request_id, insert).SerializeToString()
     future = producer.send('insert', key=identifier.encode('utf8'), value=serialized_wrapped)
@@ -36,10 +40,11 @@ def send_transfer_message(in_id: str, out_id: str, amount: int = 10):
     future.get()
 
 
-def send_update_message(up_id: str, balance: int):
+def send_update_message(up_id: str, updates: dict):
     update = Update()
     update.id = up_id
-    update.updates["balance"] = str(balance)
+    for k, v in updates.items():
+        update.updates[k] = v
     request_id = str(uuid.uuid4()).replace('-', '')
     serialized_wrapped = wrap(request_id, update).SerializeToString()
     future = producer.send('read', key=up_id.encode('utf8'), value=serialized_wrapped)
@@ -64,5 +69,7 @@ for i in range(n_records):
 
 send_transfer_message("1", "2", 10000000)
 send_transfer_message("3", "4")
-send_update_message("5", 99999)
+fields_to_update = {'field0': str(uuid.uuid4()), 'field2': str(uuid.uuid4()), 'field4': str(uuid.uuid4()),
+                    'field6': str(uuid.uuid4()), 'field8': str(uuid.uuid4())}
+send_update_message("5", fields_to_update)
 send_read_message("5")
